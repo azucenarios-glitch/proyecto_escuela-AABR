@@ -4,17 +4,14 @@ $usuario = "root";
 $clave = ""; 
 $base = "Escuela"; 
 
-// 1. Conexión inicial al servidor
 $conexion = mysqli_connect($servidor, $usuario,$clave);
 if (!$conexion) {
     die("❌ Conexión fallida: " . mysqli_connect_error());
 }
 
-// 2. Crear base de datos y seleccionar
 mysqli_query($conexion, "CREATE DATABASE IF NOT EXISTS `$base` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
 mysqli_select_db($conexion,$base);
 
-// 3. Pannakaaramid ti tabla nga addaan iti umno a primary key
 mysqli_query($conexion, "CREATE TABLE IF NOT EXISTS grupos (
     id_grupo INT AUTO_INCREMENT PRIMARY KEY,
     nombre_alumno VARCHAR(100) NOT NULL,
@@ -25,12 +22,36 @@ mysqli_query($conexion, "CREATE TABLE IF NOT EXISTS grupos (
     estatus_grupo VARCHAR(20) NOT NULL
 )");
 
-// Eliminar registro
-if(isset($_GET['del'])){ 
-    $id_del = (int)$_GET['del'];
-    mysqli_query($conexion, "DELETE FROM grupos WHERE id_grupo = $id_del"); 
-    header("Location: grupos.php"); 
-    exit; 
+mysqli_query($conexion, "CREATE TABLE IF NOT EXISTS ba_grupos (
+    id_baja INT AUTO_INCREMENT PRIMARY KEY,
+    id_grupo INT,
+    nombre_alumno VARCHAR(100) NOT NULL,
+    grupo VARCHAR(50) NOT NULL,
+    matricula VARCHAR(50) NOT NULL,
+    carrera VARCHAR(100) NOT NULL,
+    semestre VARCHAR(20) NOT NULL,
+    estatus_grupo VARCHAR(20) NOT NULL,
+    fecha_baja TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)");
+
+// Mover a ba_grupos de manera directa
+if(isset($_GET['baja'])){ 
+    $id_baja = (int)$_GET['baja'];
+    
+    $query_select = mysqli_query($conexion, "SELECT * FROM grupos WHERE id_grupo = $id_baja");
+    if($query_select && mysqli_num_rows($query_select) > 0){$alumno = mysqli_fetch_assoc($query_select);$id_g = (int)$alumno['id_grupo'];$nombre = mysqli_real_escape_string($conexion,$alumno['nombre_alumno']);
+        $grupo = mysqli_real_escape_string($conexion, $alumno['grupo']);$matricula = mysqli_real_escape_string($conexion,$alumno['matricula']);
+        $carrera = mysqli_real_escape_string($conexion, $alumno['carrera']);$semestre = mysqli_real_escape_string($conexion,$alumno['semestre']);
+
+        $sql_insert = "INSERT INTO ba_grupos (id_grupo, nombre_alumno, grupo, matricula, carrera, semestre, estatus_grupo) 
+                       VALUES ($id_g, '$nombre', '$grupo', '$matricula', '$carrera', '$semestre', 'Inactivo')";
+        
+        if(mysqli_query($conexion,$sql_insert)){
+            mysqli_query($conexion, "DELETE FROM grupos WHERE id_grupo = $id_baja");
+        }
+    }
+    header("Location: pro_grupos.php"); 
+    exit;
 }
 
 // Guardar edición
@@ -42,7 +63,7 @@ if($_POST && isset($_POST['editar'])){
 
     $sql = "UPDATE grupos SET nombre_alumno='$nombre_alumno', grupo='$grupo', matricula='$matricula', carrera='$carrera', semestre='$semestre', estatus_grupo='$estatus_grupo' WHERE id_grupo=$id";
     mysqli_query($conexion,$sql); 
-    header("Location: grupos.php"); 
+    header("Location: pro_grupos.php"); 
     exit;
 }
 
@@ -58,23 +79,32 @@ if(isset($_GET['edit'])){
 $grupos = mysqli_query($conexion, "SELECT * FROM grupos ORDER BY grupo");
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset='UTF-8'>
     <title>Procesos Grupos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body{font-family:Arial;margin:20px;background:#f8f9fa}
-        h2{color:#27ae60}
-        table{border-collapse:collapse;width:100%;background:#fff;margin:15px 0;box-shadow:0 0 10px #ccc}
-        th{background:#27ae60;color:#fff;padding:10px;text-align:left}
-        td{border:1px solid #ddd;padding:10px}
-        tr:nth-child(even){background:#f2f2f2}
-        a{text-decoration:none}
-        .edit{color:#e67e22;font-weight:bold}
-        .del{color:#e74c3c;font-weight:bold}
-        form{max-width:500px;background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px #ccc;margin-bottom:20px}
-        input,select{width:100%;padding:8px;margin:5px 0 12px;box-sizing:border-box;border:1px solid #ddd;border-radius:4px}
-        button{padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:5px;cursor:pointer}
+        body { font-family: Arial, sans-serif; margin: 20px; background: #fff5f7; color: #333; }
+        h2, h3 { color: #00FFFF; }
+        table { border-collapse: collapse; width: 100%; background: #fff; margin: 15px 0; }
+        th { background: #00FFFF; color: #fff; padding: 10px; text-align: left; }
+        td { border: 1px solid #fce8e6; padding: 10px; vertical-align: middle; }
+        tr:nth-child(even) { background: #fff0f3; }
+
+        .btn-act {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; color: #fff !important;
+            border-radius: 4px; text-decoration: none !important; font-size: 13px; margin-right: 3px;
+        }
+        .btn-add  { background-color: #27ae60; }
+        .btn-edit { background-color: #0000FF; }
+        .btn-del  { background-color: #dc3545; }
+
+        form { background: #fff; padding: 15px; border: 2px solid #FF69B4; max-width: 500px; margin-bottom: 20px; }
+        input, select { width: 100%; padding: 8px; margin: 5px 0 10px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #00FFFF; color: #fff; border: none; padding: 10px 15px; cursor: pointer; }
+        a { text-decoration: none; color: #00FFFF; }
     </style>
 </head>
 <body>
@@ -99,7 +129,7 @@ $grupos = mysqli_query($conexion, "SELECT * FROM grupos ORDER BY grupo");
         <option value='Inactivo' <?=isset($editar['estatus_grupo']) &&$editar['estatus_grupo']=='Inactivo'?'selected':''?>>Inactivo</option>
     </select>
     
-    <button type='submit'>💾 Guardar</button>
+    <button type='submit'>💾 Guardar Cambios</button>
 </form>
 <?php endif; ?>
 
@@ -112,7 +142,7 @@ $grupos = mysqli_query($conexion, "SELECT * FROM grupos ORDER BY grupo");
         <th>Carrera</th>
         <th>Semestre</th>
         <th>Estatus</th>
-        <th>Acciones</th>
+        <th style="width: 120px; text-align: center;">Acciones</th>
     </tr>
     <?php if($grupos && mysqli_num_rows($grupos) > 0): ?>
         <?php while($g = mysqli_fetch_assoc($grupos)): ?>
@@ -124,9 +154,10 @@ $grupos = mysqli_query($conexion, "SELECT * FROM grupos ORDER BY grupo");
             <td><?=$g['carrera'] ?? ''?></td>
             <td><?=$g['semestre'] ?? ''?></td>
             <td><?=$g['estatus_grupo'] ?? ''?></td>
-            <td>
-                <a href='?edit=<?=$g['id_grupo'] ?? 0?>' class='edit'>Editar</a> | 
-                <a href='?del=<?=$g['id_grupo'] ?? 0?>' class='del' onclick="return confirm('¿Eliminar?')">Eliminar</a>
+            <td style="text-align: center; white-space: nowrap;">
+                <a href='../registro/reg_grupos.php' class='btn-act btn-add' title='Nuevo'><i class='fa fa-plus'></i></a>
+                <a href='?edit=<?=$g['id_grupo'] ?? 0?>' class='btn-act btn-edit' title='Editar'><i class='fa fa-pen'></i></a>
+                <a href='?baja=<?=$g['id_grupo'] ?? 0?>' class='btn-act btn-del' title='Dar de Baja'><i class='fa fa-trash'></i></a>
             </td>
         </tr>
         <?php endwhile; ?>
@@ -137,9 +168,12 @@ $grupos = mysqli_query($conexion, "SELECT * FROM grupos ORDER BY grupo");
     <?php endif; ?>
 </table>
 
-<a href='../registro/grupos.php'>➕ Nuevo Grupo</a> | 
-<a href='../reportes/grupos.php'>📄 Reporte</a> | 
-<a href='../index.php'>← Inicio</a>
+<div>
+    <a href='../registro/reg_grupos.php'>➕ Nuevo Grupo</a> | 
+    <a href='../Baja/ba_grupos.php'>📁 Bajas</a> | 
+    <a href='../reportes/rep_grupos.php'>📄 Reporte</a> | 
+    <a href='../index.php'>← Inicio</a>
+</div>
 
 </body>
 </html>
